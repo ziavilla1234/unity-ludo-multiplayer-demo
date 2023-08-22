@@ -7,7 +7,7 @@ using UnityEngine;
 public class Player : NetworkBehaviour
 {
     public int PlayerId;
-    public MovementControls Controls;
+    
     public float MoveDistanceStep = .5f;
     public float MoveStepDuration = .5f;
 
@@ -30,7 +30,8 @@ public class Player : NetworkBehaviour
         MoveDirection.Right => new Vector3((Vector2.right * MoveDistanceStep).x, (Vector2.right * MoveDistanceStep).y),
         _ => throw new System.Exception("no dir")
     };
-    IEnumerator MoveToDirection(MoveDirection dir)
+
+    IEnumerator move_to_direction_co(MoveDirection dir)
     {
         if (_is_already_moving) yield break;
 
@@ -41,31 +42,41 @@ public class Player : NetworkBehaviour
         float time = 0;
         Vector3 start = transform.position;
 
-        while(time < MoveStepDuration)
+        while (time < MoveStepDuration)
         {
-            transform.position = Vector3.Lerp(start, to_pos, time / MoveStepDuration);
+            var new_pos = Vector3.Lerp(start, to_pos, time / MoveStepDuration);
+            update_pos_ServerRpc(new_pos);
             time += Time.deltaTime;
             yield return null;
         }
-        transform.position = to_pos;
+        update_pos_ServerRpc(to_pos);
+
+        yield return new WaitForSeconds(.3f);
 
         _is_already_moving = false;
+    }
+
+    [ServerRpc]
+    void update_pos_ServerRpc(Vector3 pos)
+    {
+        transform.position = pos;
     }
 
     // Start is called before the first frame update
     void Start()
     {
-        
-        Controls.OnLeftMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.Left));
-        Controls.OnRightMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.Right));
-        Controls.OnUpMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.Up));
-        Controls.OnDownMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.Down));
+        if (!IsOwner) return;
 
-        Controls.OnUpRightMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.UpRight));
-        Controls.OnUpLeftMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.UpLeft));
+        GameManager.Instance.Controls.OnLeftMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.Left));
+        GameManager.Instance.Controls.OnRightMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.Right));
+        GameManager.Instance.Controls.OnUpMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.Up));
+        GameManager.Instance.Controls.OnDownMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.Down));
 
-        Controls.OnDownRightMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.DownRight));
-        Controls.OnDownLeftMove += (sender, e) => StartCoroutine(MoveToDirection(MoveDirection.DownLeft));
+        GameManager.Instance.Controls.OnUpRightMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.UpRight));
+        GameManager.Instance.Controls.OnUpLeftMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.UpLeft));
+
+        GameManager.Instance.Controls.OnDownRightMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.DownRight));
+        GameManager.Instance.Controls.OnDownLeftMove += (sender, e) => StartCoroutine(move_to_direction_co(MoveDirection.DownLeft));
     }
 
     // Update is called once per frame
